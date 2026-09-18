@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from firecrawl import FirecrawlApp
 from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 
 # Initialize client connections from secret keys
@@ -49,10 +50,9 @@ def run_audit():
 
         if url and url.startswith("http"):
             try:
-                # Corrected Firecrawl v1 syntax
+                # Fetch page content via Firecrawl
                 scrape_result = firecrawl.scrape_url(url, formats=['markdown'])
                 
-                # Extract markdown text from dict or object response
                 page_text = ""
                 if isinstance(scrape_result, dict):
                     page_text = scrape_result.get('markdown', '')
@@ -81,13 +81,14 @@ def run_audit():
                     4. Mark 'Needs review' only if webpage text directly contradicts summary, self-referral, or age criteria.
                     """
 
+                    # Using valid model 'gemini-2.0-flash' with explicit type config
                     response = ai_client.models.generate_content(
-                        model='gemini-2.5-flash',
+                        model='gemini-2.0-flash',
                         contents=prompt,
-                        config={
-                            'response_mime_type': 'application/json',
-                            'response_schema': AuditResult,
-                        }
+                        config=types.GenerateContentConfig(
+                            response_mime_type='application/json',
+                            response_schema=AuditResult,
+                        ),
                     )
 
                     audit = AuditResult.model_validate_json(response.text)
