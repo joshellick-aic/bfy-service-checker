@@ -1,0 +1,5 @@
+firecrawl-py
+google-genai
+pandas
+openpyxl
+pydantic
