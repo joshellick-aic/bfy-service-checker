@@ -18,6 +18,25 @@ class AuditResult(BaseModel):
     issue: str = Field(description="Explanation of discrepancies, or 'None' if accurate")
     verbatim_evidence: str = Field(description="Exact quote from webpage supporting the finding, or 'None'")
 
+def get_active_model_name(client):
+    """Dynamically discover the active Flash model for the API key to prevent 404s."""
+    try:
+        available_models = [m.name for m in client.models.list()]
+        print(f"Available models on this key: {available_models}")
+        
+        # Priority order for active production models
+        for preferred in ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-001']:
+            for m_name in available_models:
+                if preferred in m_name:
+                    selected = m_name.replace('models/', '')
+                    print(f"Selected active model: {selected}")
+                    return selected
+    except Exception as e:
+        print(f"Model auto-discovery notice: {e}")
+    
+    # Fallback default
+    return "gemini-2.5-flash"
+
 def get_field(row, possible_names, default=""):
     """Helper to extract column value regardless of variations in header names."""
     for name in possible_names:
@@ -35,6 +54,9 @@ def run_audit():
 
     df = pd.read_csv(input_file)
     results = []
+    
+    # Discover active model dynamically
+    model_id = get_active_model_name(ai_client)
 
     for index, row in df.iterrows():
         url = get_field(row, ["Source website URL", "URL", "url", "Website URL"])
@@ -81,9 +103,8 @@ def run_audit():
                     4. Mark 'Needs review' only if webpage text directly contradicts summary, self-referral, or age criteria.
                     """
 
-                    # Using valid model 'gemini-2.0-flash' with explicit type config
                     response = ai_client.models.generate_content(
-                        model='gemini-2.0-flash',
+                        model=model_id,
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             response_mime_type='application/json',
