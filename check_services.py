@@ -17,6 +17,13 @@ class AuditResult(BaseModel):
     issue: str = Field(description="Explanation of discrepancies, or 'None' if accurate")
     verbatim_evidence: str = Field(description="Exact quote from webpage supporting the finding, or 'None'")
 
+def get_field(row, possible_names, default=""):
+    """Helper to extract column value regardless of variations in header names."""
+    for name in possible_names:
+        if name in row and pd.notna(row[name]):
+            return str(row[name]).strip()
+    return default
+
 def run_audit():
     input_file = "input_services.csv"
     output_file = "service_audit_report.xlsx"
@@ -29,12 +36,12 @@ def run_audit():
     results = []
 
     for index, row in df.iterrows():
-        # Read fields flexibly
-        url = str(row.get("URL", row.get("url", ""))).strip()
-        service_name = str(row.get("Service name", row.get("service_name", f"Row {index+1}"))).strip()
-        summary = str(row.get("Description", "")).strip()
-        self_referral = str(row.get("Self-referrals accepted", "")).strip()
-        age = str(row.get("A list of ages eligible", "")).strip()
+        # Read fields flexibly across common column naming conventions
+        url = get_field(row, ["Source website URL", "URL", "url", "Website URL"])
+        service_name = get_field(row, ["Service name", "service_name", "Service Name"], f"Row {index+1}")
+        summary = get_field(row, ["Summary text", "Description", "summary", "description"])
+        self_referral = get_field(row, ["Self-referral", "Self-referrals accepted", "self_referral"])
+        age = get_field(row, ["Age", "A list of ages eligible", "age", "ages"])
 
         source_checked = "No"
         outcome = "Needs review"
@@ -95,7 +102,12 @@ def run_audit():
 
     # Combine results and save Excel file
     audit_df = pd.DataFrame(results)
-    final_df = pd.concat([df, audit_df], axis=1)
+    
+    # Drop existing audit columns if present in input CSV to avoid duplicates
+    cols_to_drop = [c for c in audit_df.columns if c in df.columns]
+    clean_input_df = df.drop(columns=cols_to_drop)
+    
+    final_df = pd.concat([clean_input_df, audit_df], axis=1)
     
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
         final_df.to_excel(writer, index=False, sheet_name='Audit Report')
