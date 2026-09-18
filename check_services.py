@@ -36,7 +36,6 @@ def run_audit():
     results = []
 
     for index, row in df.iterrows():
-        # Read fields flexibly across common column naming conventions
         url = get_field(row, ["Source website URL", "URL", "url", "Website URL"])
         service_name = get_field(row, ["Service name", "service_name", "Service Name"], f"Row {index+1}")
         summary = get_field(row, ["Summary text", "Description", "summary", "description"])
@@ -50,9 +49,15 @@ def run_audit():
 
         if url and url.startswith("http"):
             try:
-                # Fetch page content via Firecrawl
-                scrape_result = firecrawl.scrape_url(url, params={'formats': ['markdown']})
-                page_text = scrape_result.get('markdown', '')
+                # Corrected Firecrawl v1 syntax
+                scrape_result = firecrawl.scrape_url(url, formats=['markdown'])
+                
+                # Extract markdown text from dict or object response
+                page_text = ""
+                if isinstance(scrape_result, dict):
+                    page_text = scrape_result.get('markdown', '')
+                elif hasattr(scrape_result, 'markdown'):
+                    page_text = getattr(scrape_result, 'markdown', '')
 
                 if page_text:
                     source_checked = "Yes"
@@ -100,7 +105,6 @@ def run_audit():
             "Verbatim Evidence": evidence
         })
 
-    # Combine results and save Excel file
     audit_df = pd.DataFrame(results)
     
     # Drop existing audit columns if present in input CSV to avoid duplicates
